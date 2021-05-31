@@ -1,0 +1,220 @@
+#!/usr/bin/env perl
+use lib ‘/home/jreefe/perl5/lib/perl5’;
+use Modern::Perl;
+use Mojolicious::Lite;
+
+
+########################################################################
+#	THE CONTROLLER
+########################################################################
+
+# MAIN BLOG PAGE
+get ‘/search‘ => sub {
+
+	my $self = shift;
+
+	my $fileToHandle = 'entries.txt';
+	my $pathToFile = '/blog';
+
+	# opening the file to process
+	my @entriesFile = “entries.txt”;
+	open(FILE, ‘<‘, $entriesFile) or die “Can’t read $entriesFile: error $!\n”;
+	chomp(my @entryLines = <$fileToHandle>);
+
+	#closing file as its data has been placed in array ‘entryLines’
+	close $fileToHandle;
+
+	# array of hashes
+	my @entryData;
+
+	for my $line (@entryLines){
+
+		#format of entries, one per line, in 'entries.txt':
+		#		UnixTimeStamp|Title|BlogEntry
+
+		#splitting the entry lines by the delimiter
+		my @elements = split(‘|’, $line);
+
+		#setting the delimited line values to appropriate variables
+		my $time = $elements[0];
+		my $title = $elements[1];
+		my $entry = $elements[2];
+
+		#creating and formatting a locatTime element for this entry
+		my ($sec, $min, $hour,  $mday,  $mon, $year, $wday, $yday, $isdst) = localtime($time);
+		my $formTime = “$mon\/$year  $hour:$min:$sec”;
+
+		#forming the hash containing the entry data
+		my $record = { UnixTimeStamp => $formTime, Title => $title, BlogEntry => $entry };
+
+		#pushing the hash to the @entryData container
+		push @entryData, $record;
+	}
+
+
+	$self->stash (entries => \@entryData); #pass the hash to the view
+	$self->render (‘index’);
+};
+
+# ABOUT PAGE
+get ‘/about’ => sub {
+	my $self = shift;
+	$self->render(‘about’);
+}
+
+# LINKS PAGE
+get ‘/links’ => sub {
+
+	my $self = shift;
+	
+	# getting whats in the input file 
+	my $linksFile = 'links.txt';
+	open(FILE, ‘<‘, $linksFile) or die “Can’t read $linksFile: error $!\n”;
+	my @linkLines = <FILE>;
+	close FILE;
+
+
+	# the array of link records
+	my @linkData;
+	
+	for my $x (@linkLines){
+
+		# links file has the format of 'LinkText|LinkURL'
+		my %tempRecord;
+
+		#splitting the links line into appropriate variables
+		my @parts = split(‘|’, $x);
+
+		#setting variables txt,url to the split line of links.txt
+		my $txt = $parts[0];
+		my $url = $parts[1];
+
+		#pushing the hash to the @linkData container
+		push @linkData, {LinkText => $txt, LinkURL => $url};
+	}
+
+	#rendering page, as well as stashing the links data
+	$self->stash(thelinks => \@linkData);
+	$self->render(‘links’);
+
+};
+
+any '*' => sub {
+	my $self = shift;
+	$self->rendered(404); #required for HTTP status code to be sent correctly
+	$self->render( 'oops' ); #rendering 404 page
+};
+
+# finally, calling the templating engine 
+app->start;
+
+
+########################################################################
+#	THE RESULTS Page
+########################################################################
+
+__DATA__
+
+@@ index.html.ep
+<!DOCTYPE html>
+	<html>
+		<head>
+			<title>Homepage of Jack Reefe’s server. Welcome!</title>
+			<meta charset=“utf-8”>
+	
+			<link rel=“stylesheet” href=“/blog/a.css” type=“text/css”>
+	
+			<script src="jquery-1.11.2.min.js"></script>
+			<script src="stupidtable.min.js"></script>
+
+			<script>
+				$(document).ready(function(){
+					$("#entriesTable").stupidTable();
+				});
+			</script>
+		</head>
+
+		<body>
+			<h1>Blog Entries:</h1>
+
+			<table id="entriesTable">
+				<thead>
+					<tr>
+						<th data-sort="string">Time</th>
+						<th data-sort="string">Title</th>
+						<th data-sort="string">Entry</th>
+					</tr>
+				</thead>
+				<tbody>
+					<% for my $result ( @$entries ) { %>
+						<tr>
+							<td> <%= $$result{UnixTimeStamp} %> </td>
+							<td> <%= $$result{Title} %> </td>
+							<td> <%== $$result{BlogEntry} %> </td>
+						</tr>
+					<% } %>
+				</tbody>
+			</table>
+
+			<br>
+			<a href="<%= url_for('/about') %>">About page</a>
+			<a href="<%= url_for('/links') %>">Links page</a>
+
+		</body>
+	</html>
+
+
+
+@@ about.html.ep
+<!DOCTYPE html>
+	<html>
+		<head>
+			<title>Hi!</title>
+			<meta charset="utf-8">
+		</head>
+
+		<body>
+			<p>This is the about me page! TODO: tell about me.</p>
+		</body>
+	<html>
+
+
+@@ links.html.ep
+<!DOCTYPE html>
+	<html>
+		<head>
+			<title>Links Page</title>
+			<meta charset="utf-8">
+			<link rel="stylesheet" href="/blog/a.css" type="text/css">
+
+		</head>
+
+		<body>
+			<table>
+				<tr><th>LinkText</th><th>LinkURL></th></tr>
+				<% for my $link (@$theLinks) { %>
+					<tr>
+						<td> <%= $$link{LinkText} %> </td>
+						<td> <%= $$link{LinkURL} %> </td>
+					</tr>
+				<% } %>
+			</table>
+
+			<a href="<%= url_for('/') %>">Back To Home.</a>
+
+		</body>
+	<html>
+
+
+@@ oops.html.ep
+<!DOCTYPE html>
+	<html>
+		<head>
+			<title>Perl in my HTML</title>
+			<meta charset="utf-8">
+		</head>
+		<body>
+			<h1>Nope, the thing you are looking for could not be found!</h1>
+			<a href="<%= url_for('/') %>">Back to home.</a>
+		</body>
+	</html>
